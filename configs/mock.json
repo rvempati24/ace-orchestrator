@@ -1,0 +1,9 @@
+{
+  "seed": 7,
+  "trials_per_cell": 5,
+  "budget": {
+    "max_model_calls": 100,
+    "max_estimated_cost_usd": 5.0
+  },
+  "domains": ["general", "web", "spreadsheet", "crm"]
+}
