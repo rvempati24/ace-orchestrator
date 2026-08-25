@@ -83,3 +83,20 @@ IDs and timestamps.
 
 **Why:** Proposed intent is not evidence of execution. Separating the types prevents experts
 from self-assigning success and makes stale-observation and trajectory checks enforceable.
+
+## ADR-011: Isolate BrowserGym episodes in worker processes
+
+**Decision:** Every BrowserGym session owns a single-worker process containing its Gymnasium
+environment, Playwright driver, Chromium browser, and context.
+
+**Why:** BrowserGym's API is synchronous and its Playwright instance is process-global. A process
+per task preserves driver affinity, prevents browser-state leakage, and permits real parallel
+episodes. The async orchestrator communicates over process IPC and logs the resulting overhead.
+
+## ADR-012: Benchmark outcomes verify real browser tasks
+
+**Decision:** `BrowserGymVerifier` requires positive task reward, termination without truncation,
+and successful action execution. Expert self-reports are necessary but not sufficient.
+
+**Why:** A CUA should not grade its own work. MiniWoB supplies deterministic reward and terminal
+signals that provide a clean acceptance boundary for the adapter and future model experiments.

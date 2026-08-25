@@ -8,7 +8,7 @@ from typing import Any
 class JsonlTrajectoryLogger:
     """Append one complete run per line. The schema version makes evolution explicit."""
 
-    schema_version = "1.0.0"
+    schema_version = "1.1.0"
 
     def __init__(self, path: str | Path | None = None) -> None:
         self.path = Path(path) if path else None

@@ -39,7 +39,7 @@ Every edge and outcome ──► versioned JSONL trajectory
 ```
 
 The core has no runtime dependencies beyond Python 3.11+. Mock experts are seeded and make
-no network calls.
+no network calls. BrowserGym is an explicitly installed optional execution backend.
 
 ## Terminology
 
@@ -132,9 +132,18 @@ The last command prints the endpoint without sending an inference request. Confi
 proxy token, then explicitly construct `OpenAICompatibleCUA(base_url, model_id, api_key)`.
 No test, import, demo, or experiment deploys Modal or allocates a GPU.
 
-Modal solves only model inference. A real run still needs an `EnvironmentSession` adapter that
-captures screenshots/semantic state, applies grounded browser or desktop actions, and
-provides task-specific verification. Those are deliberately not faked as “real integration.”
+Modal solves only model inference. The BrowserGym adapter supplies browser execution and
+benchmark verification; Modal does not own browser state or orchestration.
+
+## Optional BrowserGym execution
+
+Phase 2 provides real BrowserGym 0.14.3 execution with one isolated worker process and Chromium
+browser per task. It maps screenshots, accessibility/DOM state, grounded action refs, reward,
+termination, and timing into the core contracts. A deterministic expert validates five MiniWoB
+interaction primitives without making model calls.
+
+BrowserGym's pinned Playwright stack currently requires Python 3.11 or 3.12. Setup and acceptance
+commands are in [docs/PHASE2.md](docs/PHASE2.md).
 
 ## Trajectories and budgets
 
@@ -147,8 +156,8 @@ limits model calls and estimated dollars; experiment runners stop when the guard
 
 ## Current limitations
 
-- The included verifier validates mock/expert result signals, not real-world task outcomes.
-- No concrete Playwright or native-desktop environment is included yet.
+- MiniWoB verification uses benchmark reward; open-web tasks still need task-specific verifiers.
+- BrowserGym covers browser tasks; no native-desktop environment is included yet.
 - LLM planner/router classes need a caller-supplied structured model adapter.
 - Recovery logs return to the global planner after retry/reroute exhaustion; recursive
   replanning is not implemented in V0.
@@ -158,8 +167,8 @@ limits model calls and estimated dollars; experiment runners stop when the guard
 
 ## Roadmap
 
-1. Add a BrowserGym environment adapter and deterministic benchmark verifier.
-2. Run the real prompted-expert specialization matrix with fixed model/compute.
+1. Run the real prompted-expert specialization matrix with fixed model/compute.
+2. Measure BrowserGym process/IPC latency and compare only if a custom harness is justified.
 3. Measure generalist, static, LLM, and offline-oracle routing on identical trajectories.
 4. Test joint expert/compute/autonomy allocations and their Pareto frontier.
 5. Improve verification and collect broad offline coverage before considering learned routing.

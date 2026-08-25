@@ -1,4 +1,4 @@
-# Trajectory schema 1.0.0
+# Trajectory schema 1.1.0
 
 Each JSONL line is one complete orchestration run.
 
@@ -11,7 +11,8 @@ Required top-level fields:
 - `subgoals`, each with domain, success, retry/reroute counts, and attempts;
 - `escalations` in chronological order;
 - `usage` with wall/model latency, tokens, calls, and estimated dollars;
-- `final_verification` and `final_task_success`.
+- `final_verification` and `final_task_success`;
+- `environment_metrics` with backend-specific reset/step timing and outcome data.
 
 Each attempt contains:
 
@@ -23,7 +24,8 @@ Each attempt contains:
 - action records, each containing the proposed `ComputerAction`, timestamps, before/after
   observation IDs, environment-assigned success, and any execution error;
 - wall/model latency, tokens, cost, and call count;
-- structured verification checks and any error.
+- structured verification checks and any error;
+- an `environment_metrics` snapshot taken immediately after verification.
 
 Compatibility rule: additive fields may appear within a minor schema version. Renaming,
 removing, or changing the meaning of a field requires a new major schema version and a
@@ -32,3 +34,7 @@ migration script.
 Version 1.0.0 separates unexecuted commands from environment-produced records and introduces
 task-owned environment-session identity. It is intentionally incompatible with V0's flat
 action record.
+
+Version 1.1.0 adds environment telemetry. BrowserGym snapshots include the registered
+environment ID, seed, worker PID, reset and step latency, reward, and terminal/truncation state.
+BrowserGym action records also include the translated high-level action and its step latency.

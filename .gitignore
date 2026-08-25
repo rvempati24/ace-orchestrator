@@ -3,6 +3,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+.venv-browsergym/
+.miniwob-plusplus/
 dist/
 build/
 *.egg-info/

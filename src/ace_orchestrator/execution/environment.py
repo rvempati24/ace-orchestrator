@@ -103,7 +103,7 @@ class EnvironmentSession(ABC):
                 observation_after_id=after.observation_id,
                 success=success,
                 error=error,
-                metadata={"environment_session_id": self.session_id},
+                metadata=self._action_record_metadata(),
             )
             return StepOutcome(record, after)
 
@@ -119,6 +119,14 @@ class EnvironmentSession(ABC):
     def _ensure_open(self) -> None:
         if self._closed:
             raise RuntimeError(f"environment session {self.session_id} is closed")
+
+    def metrics_snapshot(self) -> dict[str, Any]:
+        """Return JSON-safe environment telemetry without transferring ownership."""
+
+        return {}
+
+    def _action_record_metadata(self) -> dict[str, Any]:
+        return {"environment_session_id": self.session_id}
 
     @abstractmethod
     async def _observe(self) -> EnvironmentObservation:

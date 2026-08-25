@@ -70,9 +70,23 @@ class Orchestrator:
     ) -> OrchestrationResult:
         """Run one isolated task episode and always close its environment."""
 
-        started = perf_counter()
         root_task = Task(task)
         benchmark_task = BenchmarkTask.from_task(root_task)
+        return await self.run_benchmark(benchmark_task, initial_state)
+
+    async def run_benchmark(
+        self,
+        benchmark_task: BenchmarkTask,
+        initial_state: ExecutionState | None = None,
+    ) -> OrchestrationResult:
+        """Run a caller-specified benchmark episode without losing its environment metadata."""
+
+        started = perf_counter()
+        root_task = Task(
+            benchmark_task.instruction,
+            task_id=benchmark_task.task_id,
+            metadata={"domain": benchmark_task.domain, **benchmark_task.metadata},
+        )
         environment = await self.environment_factory.create(benchmark_task)
         async with environment:
             return await self._run_in_environment(
@@ -203,6 +217,7 @@ class Orchestrator:
                     "actions": to_primitive(result.actions),
                     "usage": to_primitive(result.usage),
                     "verification_result": to_primitive(verification),
+                    "environment_metrics": to_primitive(environment.metrics_snapshot()),
                     "error": result.error,
                 }
                 attempts.append(attempt)
@@ -283,6 +298,7 @@ class Orchestrator:
                     "failed": list(state.failed_subgoals),
                 },
                 "usage": to_primitive(usage),
+                "environment_metrics": to_primitive(environment.metrics_snapshot()),
                 "finished_at": datetime.now(UTC).isoformat(),
             }
         )

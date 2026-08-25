@@ -19,6 +19,9 @@ dev = [
   "ruff>=0.9,<1",
 ]
 modal = ["modal>=1.1,<2"]
+browsergym = [
+  "browsergym-miniwob==0.14.3",
+]
 
 [project.scripts]
 ace-orchestrator = "ace_orchestrator.__main__:main"
@@ -30,6 +33,9 @@ packages = ["src/ace_orchestrator"]
 addopts = "-q"
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+  "browsergym: real BrowserGym/MiniWoB acceptance tests requiring Chromium and MINIWOB_URL",
+]
 
 [tool.ruff]
 line-length = 100
