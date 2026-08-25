@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from ace_orchestrator.core.models import AutonomyHorizon, ExecutionState, ExpertResult, Subgoal
+from ace_orchestrator.execution.environment import EnvironmentSession
 from ace_orchestrator.policies.base import Policy
 
 
@@ -23,5 +24,6 @@ class Expert(ABC):
         state: ExecutionState,
         policy: Policy,
         horizon: AutonomyHorizon,
+        environment: EnvironmentSession,
     ) -> ExpertResult:
         raise NotImplementedError

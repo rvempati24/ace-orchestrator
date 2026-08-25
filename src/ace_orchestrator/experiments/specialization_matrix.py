@@ -5,6 +5,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from ace_orchestrator.benchmarks.base import BenchmarkTask
 from ace_orchestrator.core.models import (
     AutonomyHorizon,
     ExecutionState,
@@ -12,6 +13,7 @@ from ace_orchestrator.core.models import (
     Subgoal,
     Usage,
 )
+from ace_orchestrator.execution.environment import EnvironmentFactory, MockEnvironmentFactory
 from ace_orchestrator.experts.base import Expert
 from ace_orchestrator.policies.base import Policy
 
@@ -64,10 +66,12 @@ async def run_specialization_matrix(
     policy: Policy,
     trials_per_cell: int = 10,
     budget: ExperimentBudget | None = None,
+    environment_factory: EnvironmentFactory | None = None,
 ) -> SpecializationMatrix:
     if trials_per_cell < 1:
         raise ValueError("trials_per_cell must be positive")
     guard = budget or ExperimentBudget()
+    factory = environment_factory if environment_factory is not None else MockEnvironmentFactory()
     usage = Usage()
     scores: dict[str, dict[str, float]] = {}
     horizon = AutonomyHorizon(max_actions=policy.config.suggested_action_horizon)
@@ -81,14 +85,26 @@ async def run_specialization_matrix(
                 projected_cost = usage.estimated_cost_usd + policy.config.simulated_cost_usd
                 if projected_cost > guard.max_estimated_cost_usd:
                     guard.check(Usage(estimated_cost_usd=projected_cost))
-                result = await expert.execute(
-                    Subgoal(
-                        f"{domain}-{trial}", f"Complete a {domain} benchmark task", domain=domain
-                    ),
-                    ExecutionState(),
-                    policy,
-                    horizon,
+                subgoal = Subgoal(
+                    f"{domain}-{trial}",
+                    f"Complete a {domain} benchmark task",
+                    domain=domain,
                 )
+                task = BenchmarkTask(
+                    f"matrix:{domain}:{trial}",
+                    subgoal.description,
+                    domain,
+                    {"trial": trial},
+                )
+                environment = await factory.create(task)
+                async with environment:
+                    result = await expert.execute(
+                        subgoal,
+                        ExecutionState(),
+                        policy,
+                        horizon,
+                        environment,
+                    )
                 usage = usage + result.usage
                 guard.check(usage)
                 successes += int(result.success)

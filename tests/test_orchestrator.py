@@ -2,13 +2,14 @@ from pathlib import Path
 
 import pytest
 
+from ace_orchestrator.core.actions import ComputerAction
 from ace_orchestrator.core.models import (
-    ActionRecord,
     AutonomyHorizon,
     ExecutionState,
     ExpertResult,
     Subgoal,
 )
+from ace_orchestrator.execution.environment import EnvironmentSession, MockEnvironmentFactory
 from ace_orchestrator.experts.base import Expert
 from ace_orchestrator.experts.registry import ExpertRegistry
 from ace_orchestrator.orchestration.expert_router import StaticRouter
@@ -32,17 +33,27 @@ class AlwaysExpert(Expert):
         state: ExecutionState,
         policy: Policy,
         horizon: AutonomyHorizon,
+        environment: EnvironmentSession,
     ) -> ExpertResult:
         success = next(self.outcomes)
+        before = await environment.observe()
+        outcome = await environment.act(
+            ComputerAction("test", target=subgoal.subgoal_id), before=before
+        )
         return ExpertResult(
             success,
             {"ok": success},
-            (ActionRecord("test", subgoal.subgoal_id),),
+            (outcome.record,),
             error=None if success else "failed",
         )
 
 
-def make_orchestrator(expert: Expert, path: Path) -> Orchestrator:
+def make_orchestrator(
+    expert: Expert,
+    path: Path,
+    *,
+    environment_factory: MockEnvironmentFactory | None = None,
+) -> Orchestrator:
     registry = ExpertRegistry()
     registry.register(expert)
     return Orchestrator(
@@ -52,6 +63,7 @@ def make_orchestrator(expert: Expert, path: Path) -> Orchestrator:
         experts=registry,
         policies=default_policies(),
         verifier=ResultVerifier(),
+        environment_factory=environment_factory,
         logger=JsonlTrajectoryLogger(path),
     )
 
@@ -66,6 +78,8 @@ async def test_run_logs_complete_contract_and_jsonl(tmp_path: Path) -> None:
     attempt = result.trajectory["subgoals"][0]["attempts"][0]
     assert attempt["selected_expert"] == "web"
     assert attempt["selected_policy"] == "fast"
+    assert attempt["environment_session_id"] == result.trajectory["environment"]["session_id"]
+    assert attempt["actions"][0]["action"]["kind"] == "test"
     assert attempt["verification_result"]["success"] is True
     assert path.read_text().count("\n") == 1
 

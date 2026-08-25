@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from time import perf_counter
 from typing import Any
 
+from ace_orchestrator.benchmarks.base import BenchmarkTask
 from ace_orchestrator.core.models import (
     AutonomyHorizon,
     BudgetExceeded,
@@ -16,6 +17,11 @@ from ace_orchestrator.core.models import (
     Task,
     Usage,
     to_primitive,
+)
+from ace_orchestrator.execution.environment import (
+    EnvironmentFactory,
+    EnvironmentSession,
+    MockEnvironmentFactory,
 )
 from ace_orchestrator.execution.executor import Executor
 from ace_orchestrator.experts.registry import ExpertRegistry
@@ -38,6 +44,7 @@ class Orchestrator:
         experts: ExpertRegistry,
         policies: dict[str, Policy],
         verifier: Verifier,
+        environment_factory: EnvironmentFactory | None = None,
         recovery: RecoveryPolicy | None = None,
         budget: ExperimentBudget | None = None,
         logger: JsonlTrajectoryLogger | None = None,
@@ -49,6 +56,9 @@ class Orchestrator:
         self.experts = experts
         self.policies = policies
         self.verifier = verifier
+        self.environment_factory = (
+            environment_factory if environment_factory is not None else MockEnvironmentFactory()
+        )
         self.recovery = recovery or RecoveryPolicy()
         self.budget = budget or ExperimentBudget()
         self.logger = logger or JsonlTrajectoryLogger()
@@ -58,17 +68,40 @@ class Orchestrator:
     async def run(
         self, task: str, initial_state: ExecutionState | None = None
     ) -> OrchestrationResult:
+        """Run one isolated task episode and always close its environment."""
+
         started = perf_counter()
-        created_at = datetime.now(UTC).isoformat()
         root_task = Task(task)
-        state = initial_state or ExecutionState()
+        benchmark_task = BenchmarkTask.from_task(root_task)
+        environment = await self.environment_factory.create(benchmark_task)
+        async with environment:
+            return await self._run_in_environment(
+                root_task,
+                deepcopy(initial_state) if initial_state is not None else ExecutionState(),
+                environment,
+                started,
+            )
+
+    async def _run_in_environment(
+        self,
+        root_task: Task,
+        state: ExecutionState,
+        environment: EnvironmentSession,
+        started: float,
+    ) -> OrchestrationResult:
+        created_at = datetime.now(UTC).isoformat()
         subgoals = await self.planner.plan(root_task, state)
         self._validate_plan(subgoals)
         trajectory: dict[str, Any] = {
             "schema_version": self.logger.schema_version,
             "task_id": root_task.task_id,
-            "user_goal": task,
+            "user_goal": root_task.user_goal,
             "created_at": created_at,
+            "environment": {
+                "session_id": environment.session_id,
+                "factory": type(self.environment_factory).__name__,
+                "benchmark_task": to_primitive(environment.task),
+            },
             "planner_decision": {
                 "planner": type(self.planner).__name__,
                 "subgoals": to_primitive(subgoals),
@@ -97,6 +130,7 @@ class Orchestrator:
                         "subgoal_description": subgoal.description,
                         "success": False,
                         "reason": "dependency not completed",
+                        "environment_session_id": environment.session_id,
                         "attempts": [],
                         "retry_count": 0,
                         "reroute_count": 0,
@@ -126,17 +160,28 @@ class Orchestrator:
                     policy_id,
                     horizon,
                     self.modality,
-                    {"retry_count": retry_count, "reroute_count": reroute_count},
+                    {
+                        "retry_count": retry_count,
+                        "reroute_count": reroute_count,
+                        "environment_session_id": environment.session_id,
+                    },
                 )
                 before = deepcopy(state)
-                result = await self.executor.execute(contract, state)
+                result = await self.executor.execute(contract, state, environment)
                 usage = usage + result.usage
                 self.budget.check(usage)
                 if result.success:
                     state.values[subgoal.subgoal_id] = result.output
-                verification = await self.verifier.verify(subgoal, before, state, result)
+                verification = await self.verifier.verify(
+                    subgoal,
+                    before,
+                    state,
+                    result,
+                    environment,
+                )
                 attempt = {
                     "execution_contract": to_primitive(contract),
+                    "environment_session_id": environment.session_id,
                     "expert_candidates": list(selection.candidates),
                     "selected_expert": expert_id,
                     "expert_reasoning": (
@@ -166,6 +211,7 @@ class Orchestrator:
                         "subgoal_id": subgoal.subgoal_id,
                         "expert_id": expert_id,
                         "policy_id": policy_id,
+                        "environment_session_id": environment.session_id,
                         "verified": verification.success,
                     }
                 )
@@ -184,6 +230,8 @@ class Orchestrator:
                     "action": recovery_action.value,
                     "from_expert": expert_id,
                     "from_policy": policy_id,
+                    "environment_session_id": environment.session_id,
+                    "state_strategy": "continue_in_place",
                 }
                 trajectory["escalations"].append(escalation)
                 if recovery_action is RecoveryAction.RETRY_STRONGER:
@@ -208,6 +256,7 @@ class Orchestrator:
                     "subgoal_id": subgoal.subgoal_id,
                     "subgoal_description": subgoal.description,
                     "domain": subgoal.domain,
+                    "environment_session_id": environment.session_id,
                     "success": subgoal_success,
                     "attempts": attempts,
                     "retry_count": retry_count,

@@ -7,6 +7,8 @@ from enum import Enum, StrEnum
 from typing import Any
 from uuid import uuid4
 
+from ace_orchestrator.core.actions import ActionRecord
+
 
 class ExecutionModality(StrEnum):
     MOCK = "mock"
@@ -71,14 +73,6 @@ class ExecutionContract:
     policy_id: str
     autonomy_horizon: AutonomyHorizon
     modality: ExecutionModality
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class ActionRecord:
-    kind: str
-    target: str
-    success: bool = True
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

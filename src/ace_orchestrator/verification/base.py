@@ -8,6 +8,7 @@ from ace_orchestrator.core.models import (
     Subgoal,
     VerificationResult,
 )
+from ace_orchestrator.execution.environment import EnvironmentSession
 
 
 class Verifier(ABC):
@@ -18,5 +19,6 @@ class Verifier(ABC):
         before: ExecutionState,
         after: ExecutionState,
         expert_result: ExpertResult,
+        environment: EnvironmentSession,
     ) -> VerificationResult:
         raise NotImplementedError

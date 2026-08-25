@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import random
 
+from ace_orchestrator.core.actions import ComputerAction
 from ace_orchestrator.core.models import (
-    ActionRecord,
     AutonomyHorizon,
     ExecutionState,
     ExpertResult,
     Subgoal,
     Usage,
 )
+from ace_orchestrator.execution.environment import EnvironmentSession
 from ace_orchestrator.experts.base import Expert
 from ace_orchestrator.policies.base import Policy
 
@@ -32,7 +33,7 @@ class MockExpert(Expert):
         self.base_success = base_success
         self.off_domain_penalty = off_domain_penalty
         self.success_by_domain = success_by_domain or {}
-        self._random = random.Random(seed)
+        self.seed = seed
 
     def success_probability(
         self, subgoal: Subgoal, policy: Policy, horizon: AutonomyHorizon
@@ -53,14 +54,24 @@ class MockExpert(Expert):
         state: ExecutionState,
         policy: Policy,
         horizon: AutonomyHorizon,
+        environment: EnvironmentSession,
     ) -> ExpertResult:
         probability = self.success_probability(subgoal, policy, horizon)
-        success = self._random.random() < probability
-        actions_count = min(horizon.action_limit, 2 if success else 1)
-        actions = tuple(
-            ActionRecord("mock_step", f"{subgoal.subgoal_id}:{index + 1}", success)
-            for index in range(actions_count)
+        execution_random = random.Random(
+            f"{self.seed}:{subgoal.subgoal_id}:{subgoal.description}:"
+            f"{policy.policy_id}:{horizon.action_limit}"
         )
+        success = execution_random.random() < probability
+        actions_count = min(horizon.action_limit, 2 if success else 1)
+        records = []
+        observation = await environment.observe()
+        for index in range(actions_count):
+            outcome = await environment.act(
+                ComputerAction("mock_step", target=f"{subgoal.subgoal_id}:{index + 1}"),
+                before=observation,
+            )
+            records.append(outcome.record)
+            observation = outcome.observation
         usage = Usage(
             wall_clock_latency_s=policy.config.simulated_latency_s,
             model_latency_s=policy.config.simulated_latency_s,
@@ -76,7 +87,7 @@ class MockExpert(Expert):
                 "domain": subgoal.domain,
                 "success_probability": probability,
             },
-            actions=actions,
+            actions=tuple(records),
             usage=usage,
             error=None if success else "simulated execution failure",
         )

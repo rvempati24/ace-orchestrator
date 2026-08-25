@@ -7,7 +7,7 @@ from ace_orchestrator.core.models import (
     Subgoal,
     Usage,
 )
-from ace_orchestrator.execution.environment import ComputerEnvironment
+from ace_orchestrator.execution.environment import EnvironmentSession
 from ace_orchestrator.experts.base import Expert
 from ace_orchestrator.inference.base import CUABackend
 from ace_orchestrator.policies.base import Policy
@@ -23,12 +23,10 @@ class PromptedCUAExpert(Expert):
         capabilities: tuple[str, ...],
         system_prompt: str,
         backend: CUABackend,
-        environment: ComputerEnvironment,
     ) -> None:
         super().__init__(expert_id, description, capabilities)
         self.system_prompt = system_prompt
         self.backend = backend
-        self.environment = environment
 
     async def execute(
         self,
@@ -36,12 +34,13 @@ class PromptedCUAExpert(Expert):
         state: ExecutionState,
         policy: Policy,
         horizon: AutonomyHorizon,
+        environment: EnvironmentSession,
     ) -> ExpertResult:
-        actions = []
+        records = []
         usage = Usage()
         summary = "autonomy horizon exhausted"
         for _ in range(horizon.action_limit):
-            observation = await self.environment.observe()
+            observation = await environment.observe()
             proposal = await self.backend.propose(
                 system_prompt=self.system_prompt,
                 subgoal=subgoal,
@@ -51,16 +50,25 @@ class PromptedCUAExpert(Expert):
             usage = usage + proposal.usage
             summary = proposal.summary
             for action in proposal.actions:
-                await self.environment.apply(action)
-                actions.append(action)
+                outcome = await environment.act(action, before=observation)
+                records.append(outcome.record)
+                observation = outcome.observation
+                if not outcome.record.success:
+                    return ExpertResult(
+                        False,
+                        {"summary": summary},
+                        tuple(records),
+                        usage,
+                        outcome.record.error,
+                    )
             if proposal.done:
-                return ExpertResult(True, {"summary": summary}, tuple(actions), usage)
+                return ExpertResult(True, {"summary": summary}, tuple(records), usage)
             if not proposal.actions:
                 return ExpertResult(
                     False,
                     {"summary": summary},
-                    tuple(actions),
+                    tuple(records),
                     usage,
                     "model neither completed the subgoal nor proposed an action",
                 )
-        return ExpertResult(False, {"summary": summary}, tuple(actions), usage, summary)
+        return ExpertResult(False, {"summary": summary}, tuple(records), usage, summary)

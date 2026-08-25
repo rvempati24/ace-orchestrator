@@ -45,6 +45,8 @@ no network calls.
 
 - **Orchestrator:** owns global state and advances the task through verified subgoals.
 - **Expert:** a capability implementation—initially the same CUA can be specialized by prompt.
+- **Environment session:** the mutable task world. It belongs to one task episode and may be
+  handed between experts during retries or rerouting.
 - **Policy:** a compute allocation such as model ID, reasoning budget, token limit, and action
   allowance. It is not an expert.
 - **Execution contract:** the explicit assignment of one subgoal to an expert, policy,
@@ -77,11 +79,18 @@ result = await orchestrator.run(
 Subclass `experts.base.Expert`, implement async `execute`, and register the instance:
 
 ```python
+async def execute(self, subgoal, state, policy, horizon, environment):
+    observation = await environment.observe()
+    # Propose commands; the environment turns each command into an ActionRecord.
+
+
 registry.register(MyExpert("web", "Web specialist", ("web",)))
 ```
 
 The orchestrator has no expert IDs hard-coded. For prompt specialization, construct
-`PromptedCUAExpert` instances with the same backend and different prompt files.
+`PromptedCUAExpert` instances with the same backend and different prompt files. Experts are
+stateless with respect to the task world: the executor supplies an `EnvironmentSession` for
+each call, so the same expert may serve multiple isolated runs concurrently.
 
 ## Add a policy
 
@@ -94,9 +103,10 @@ Create a `Policy` with a `PolicyConfig`, add it to the policy mapping, then teac
 ace-orchestrator specialization --trials 5
 ```
 
-This evaluates every mock expert in every domain, prints the matrix and diagonal advantage,
-and exports `results/specialization.json` and `.csv`. Replace mock experts with prompted real
-CUAs only after setting a conservative `ExperimentBudget`.
+This evaluates every mock expert in every domain from a fresh environment session, prints the
+matrix and diagonal advantage, and exports `results/specialization.json` and `.csv`. Competing
+experts receive the same benchmark task identity but independent sessions. Replace mock experts
+with prompted real CUAs only after setting a conservative `ExperimentBudget`.
 
 `experiments.routing_baselines` compares monolithic generalist, static, LLM, and offline
 oracle orchestrators built by the caller. `experiments.joint_routing` defines future arms for
@@ -122,7 +132,7 @@ The last command prints the endpoint without sending an inference request. Confi
 proxy token, then explicitly construct `OpenAICompatibleCUA(base_url, model_id, api_key)`.
 No test, import, demo, or experiment deploys Modal or allocates a GPU.
 
-Modal solves only model inference. A real run still needs a `ComputerEnvironment` that
+Modal solves only model inference. A real run still needs an `EnvironmentSession` adapter that
 captures screenshots/semantic state, applies grounded browser or desktop actions, and
 provides task-specific verification. Those are deliberately not faked as “real integration.”
 
@@ -148,7 +158,7 @@ limits model calls and estimated dollars; experiment runners stop when the guard
 
 ## Roadmap
 
-1. Build a grounded Playwright environment and deterministic benchmark verifier.
+1. Add a BrowserGym environment adapter and deterministic benchmark verifier.
 2. Run the real prompted-expert specialization matrix with fixed model/compute.
 3. Measure generalist, static, LLM, and offline-oracle routing on identical trajectories.
 4. Test joint expert/compute/autonomy allocations and their Pareto frontier.

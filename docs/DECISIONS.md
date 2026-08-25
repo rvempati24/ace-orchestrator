@@ -63,3 +63,23 @@ keeping the interface first-class prevents it from becoming the research reward 
 planner. V0 stops that subgoal after returning control rather than silently inventing a plan.
 
 **Why:** The requested behavior is observable without embedding a brittle recursive planner.
+
+## ADR-009: Environments belong to task episodes, not experts
+
+**Decision:** `EnvironmentFactory` creates one isolated `EnvironmentSession` per orchestration
+run. The executor passes that session into stateless experts. Retries and reroutes within the
+run preserve the same session; independent and specialization-matrix trials receive fresh
+sessions.
+
+**Why:** Mutable browser/application state must survive expert handoffs without leaking across
+parallel tasks. This also permits one expert configuration to serve many sessions concurrently
+and gives the orchestrator centralized lifecycle and cleanup control.
+
+## ADR-010: Commands and action records are different types
+
+**Decision:** A model or expert emits `ComputerAction`. Only an `EnvironmentSession` may create
+an `ActionRecord`, after serializing the mutation and binding it to before/after observation
+IDs and timestamps.
+
+**Why:** Proposed intent is not evidence of execution. Separating the types prevents experts
+from self-assigning success and makes stale-observation and trajectory checks enforceable.

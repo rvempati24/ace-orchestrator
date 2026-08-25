@@ -7,7 +7,8 @@ from time import perf_counter
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from ace_orchestrator.core.models import ActionRecord, Subgoal, Usage
+from ace_orchestrator.core.actions import ComputerAction
+from ace_orchestrator.core.models import Subgoal, Usage
 from ace_orchestrator.execution.environment import EnvironmentObservation
 from ace_orchestrator.inference.base import CUABackend, CUAProposal
 from ace_orchestrator.policies.base import Policy
@@ -46,7 +47,7 @@ class OpenAICompatibleCUA(CUABackend):
             raise RuntimeError("CUA endpoint returned no text content")
         decoded = self._extract_json(content)
         raw_actions = decoded.get("actions", [])
-        actions: list[ActionRecord] = []
+        actions: list[ComputerAction] = []
         for row in raw_actions:
             kind = str(row.get("kind", ""))
             if kind not in self.allowed_actions:
@@ -54,11 +55,15 @@ class OpenAICompatibleCUA(CUABackend):
             if kind == "finish":
                 continue
             actions.append(
-                ActionRecord(
-                    kind,
-                    str(row.get("target", "")),
+                ComputerAction(
+                    kind=kind,
+                    target_ref=str(row["target_ref"]) if row.get("target_ref") else None,
+                    target=str(row["target"]) if row.get("target") else None,
+                    value=str(row["value"]) if row.get("value") is not None else None,
                     metadata={
-                        key: value for key, value in row.items() if key not in {"kind", "target"}
+                        key: value
+                        for key, value in row.items()
+                        if key not in {"kind", "target_ref", "target", "value"}
                     },
                 )
             )

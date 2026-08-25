@@ -4,6 +4,7 @@ from ace_orchestrator.core.models import (
     Subgoal,
     VerificationResult,
 )
+from ace_orchestrator.execution.environment import EnvironmentSession
 from ace_orchestrator.verification.base import Verifier
 
 
@@ -16,10 +17,12 @@ class ResultVerifier(Verifier):
         before: ExecutionState,
         after: ExecutionState,
         expert_result: ExpertResult,
+        environment: EnvironmentSession,
     ) -> VerificationResult:
         checks = {
             "expert_reported_success": expert_result.success,
-            "actions_completed": bool(expert_result.actions),
+            "actions_completed": bool(expert_result.actions)
+            and all(record.success for record in expert_result.actions),
             "no_execution_error": expert_result.error is None,
         }
         score = sum(checks.values()) / len(checks)
