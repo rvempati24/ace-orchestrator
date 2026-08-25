@@ -23,6 +23,7 @@ class EnvironmentObservation:
     values: dict[str, Any]
     captured_at: str = field(default_factory=_now)
     screenshot_base64: str | None = None
+    screenshot_mime_type: str | None = None
     available_action_refs: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
 

@@ -145,6 +145,9 @@ interaction primitives without making model calls.
 BrowserGym's pinned Playwright stack currently requires Python 3.11 or 3.12. Setup and acceptance
 commands are in [docs/PHASE2.md](docs/PHASE2.md).
 
+Phase 3's prompted-CUA protocol, live endpoint example, and remaining deployment acceptance
+criteria are tracked in [docs/PHASE3.md](docs/PHASE3.md).
+
 ## Trajectories and budgets
 
 Each JSONL line includes the planner decision, candidate sets, selected contract, before/after

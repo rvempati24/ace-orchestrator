@@ -254,6 +254,7 @@ class BrowserGymEnvironmentSession(EnvironmentSession):
                 "active_page_index": _json_safe(raw.get("active_page_index")),
             },
             screenshot_base64=_encode_screenshot(raw.get("screenshot")),
+            screenshot_mime_type="image/png",
             available_action_refs=_extract_action_refs(raw.get("axtree_object", {})),
             metadata={
                 "environment_id": self.browsergym_task.environment_id,
