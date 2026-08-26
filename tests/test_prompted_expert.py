@@ -35,6 +35,21 @@ class RaisingBackend(CUABackend):
         raise RuntimeError("endpoint unavailable")
 
 
+class HistoryBackend(CUABackend):
+    def __init__(self) -> None:
+        self.observations = []
+
+    async def propose(self, *, system_prompt, subgoal, observation, policy) -> CUAProposal:
+        self.observations.append(observation)
+        if len(self.observations) == 1:
+            return CUAProposal(
+                (ComputerAction("click", target_ref="button-1"),),
+                done=False,
+                summary="clicked",
+            )
+        return CUAProposal((), done=True, summary="complete")
+
+
 @pytest.mark.asyncio
 async def test_prompted_expert_receives_environment_per_execution() -> None:
     expert = PromptedCUAExpert(
@@ -98,3 +113,32 @@ async def test_prompted_expert_returns_inference_failures_for_bounded_recovery()
     assert result.error == "inference failed: endpoint unavailable"
     assert result.output["model_turns"] == 0
     assert environment.closed
+
+
+@pytest.mark.asyncio
+async def test_prompted_expert_exposes_recent_action_history_to_later_turns() -> None:
+    backend = HistoryBackend()
+    expert = PromptedCUAExpert("web", "web expert", ("web",), "Use the browser", backend)
+    environment = MockEnvironmentSession(BenchmarkTask("task", "Click", "web"))
+
+    async with environment:
+        result = await expert.execute(
+            Subgoal("click", "Click", domain="web"),
+            ExecutionState(),
+            FastPolicy(),
+            AutonomyHorizon(max_actions=2),
+            environment,
+        )
+
+    assert result.success
+    assert backend.observations[0].values["recent_actions"] == []
+    assert backend.observations[1].values["recent_actions"] == [
+        {
+            "kind": "click",
+            "target_ref": "button-1",
+            "target": None,
+            "value": None,
+            "success": True,
+            "error": None,
+        }
+    ]

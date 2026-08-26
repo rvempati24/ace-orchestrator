@@ -1,0 +1,93 @@
+{
+  "schema_version": "1.0.0",
+  "run_date": "2026-08-25",
+  "benchmark": {
+    "name": "MiniWoB++ via BrowserGym",
+    "tasks": [
+      "click-test",
+      "click-button",
+      "enter-text",
+      "choose-list",
+      "copy-paste"
+    ],
+    "seed": 1
+  },
+  "fixed_configuration": {
+    "model": "Hcompany/Holo-3.1-35B-A3B",
+    "model_revision": "2bdb92851a8cd9d72cdd891fdf38cfcc7fefae2c",
+    "vllm_version": "0.21.0",
+    "gpu": "H200:1",
+    "policy": "fast",
+    "max_output_tokens": 256,
+    "action_horizon": 3,
+    "max_actions_per_response": 3
+  },
+  "generalist": {
+    "prompt": "prompts/generalist.md",
+    "successes": 3,
+    "tasks": 5,
+    "success_rate": 0.6,
+    "wall_clock_latency_s": 61.367,
+    "model_latency_s": 53.59,
+    "browser_step_latency_s": 3.008,
+    "browser_reset_latency_s": 4.667,
+    "input_tokens": 8517,
+    "output_tokens": 392,
+    "model_calls": 10,
+    "actions": 10,
+    "invalid_actions": 1,
+    "invalid_action_rate": 0.1,
+    "task_results": {
+      "click-test": true,
+      "click-button": true,
+      "enter-text": true,
+      "choose-list": false,
+      "copy-paste": false
+    }
+  },
+  "browser_specialist": {
+    "prompt": "prompts/browser-specialist.md",
+    "successes": 5,
+    "tasks": 5,
+    "success_rate": 1.0,
+    "wall_clock_latency_s": 35.35,
+    "model_latency_s": 28.658,
+    "browser_step_latency_s": 2.034,
+    "browser_reset_latency_s": 4.566,
+    "input_tokens": 7178,
+    "output_tokens": 279,
+    "model_calls": 7,
+    "actions": 8,
+    "invalid_actions": 0,
+    "invalid_action_rate": 0.0,
+    "task_results": {
+      "click-test": true,
+      "click-button": true,
+      "enter-text": true,
+      "choose-list": true,
+      "copy-paste": true
+    }
+  },
+  "cold_start": {
+    "cached_endpoint_ready_s_min": 286,
+    "cached_endpoint_ready_s_median": 353,
+    "cached_endpoint_ready_s_max": 370,
+    "normal_checkpoint_load_s_min": 43,
+    "normal_checkpoint_load_s_max": 60,
+    "behavior_during_startup": "HTTP 503 until ready"
+  },
+  "cost": {
+    "modal_h200_rate_usd_per_hour": 4.54,
+    "effective_container_rate_usd_per_hour": 5.4304,
+    "final_matrix_active_time_estimate_usd": 0.1459,
+    "measured_app_cost_including_deploy_debug_cold_starts_and_idle_usd": 10.12769524,
+    "measured_h200_component_usd": 8.39152682,
+    "provider_token_cost_usd": 0.0
+  },
+  "infrastructure_incidents": {
+    "cold_start_503s": true,
+    "transient_503s_during_scale_transition": true,
+    "credential_scope": "workspace-wide because workspace RBAC was disabled",
+    "temporary_proxy_token_revoked": true
+  }
+}

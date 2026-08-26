@@ -4,7 +4,7 @@ Phase 3 connects model inference to the real BrowserGym loop while preserving th
 environment boundary from Phases 1 and 2. Browser processes remain local isolated workers;
 Modal is only an optional OpenAI-compatible multimodal inference service.
 
-## Started and verified
+## Completed and verified
 
 - [x] Phase 2 is published on `main` at commit `04dc82b`.
 - [x] Raw BrowserGym DOM/AX payloads are compacted into grounded element records before inference.
@@ -19,20 +19,23 @@ Modal is only an optional OpenAI-compatible multimodal inference service.
 - [x] The Modal definition is configured to serve revision-pinned Holo 3.1 through vLLM 0.21
   on one H200.
 - [x] The deployment definition loads successfully with Modal SDK 1.5.4 and an authenticated
-  local profile; no cloud resources were created.
+  local profile.
 
-## Remaining completion criteria
+## Completion criteria
 
-- [ ] Deploy the inference app with explicit user approval for the cost-bearing live step.
-- [ ] Create a Modal proxy token scoped to the deployment environment.
-- [ ] Pass endpoint health, model-list, text JSON, and screenshot JSON smoke checks.
-- [ ] Run the five Phase 2 MiniWoB tasks with Holo using fixed model, policy, prompt, and seeds.
-- [ ] Add at least one browser-specialist prompt and compare it with the generalist under identical
+- [x] Deploy the inference app with explicit user approval for the cost-bearing live step.
+- [x] Use an explicitly approved temporary proxy token and revoke it after the live run. Workspace
+  RBAC was disabled, so environment scoping was unavailable and the token was workspace-wide.
+- [x] Pass endpoint health, model-list, text JSON, and screenshot JSON smoke checks.
+- [x] Run the five Phase 2 MiniWoB tasks with Holo using fixed model, policy, prompt, and seeds.
+- [x] Add at least one browser-specialist prompt and compare it with the generalist under identical
   compute and environment conditions.
-- [ ] Export success, model latency, browser latency, tokens, estimated cost, invalid-action rate,
+- [x] Export success, model latency, browser latency, tokens, estimated cost, invalid-action rate,
   and cold-start measurements.
-- [ ] Confirm all environment cleanup and budget guards under endpoint errors and timeouts.
-- [ ] Commit and publish only after the live acceptance report is reproducible.
+- [x] Confirm all environment cleanup and budget guards under endpoint errors and timeouts.
+- [x] Publish only after the live acceptance report and machine-readable aggregate are reproducible.
+
+See `docs/PHASE3_REPORT.md` and `results/phase3_live.json` for the measured results.
 
 ## Local protocol verification
 
@@ -66,7 +69,9 @@ export ACE_CUA_MODEL_ID="Hcompany/Holo-3.1-35B-A3B"
 export MINIWOB_URL="file://$PWD/.miniwob-plusplus/miniwob/html/miniwob/"
 
 .venv-browsergym/bin/python examples/browsergym_prompted.py \
-  --task click-test --seed 0 --output trajectories/phase3-smoke.jsonl
+  --task click-test --seed 1 --policy fast \
+  --prompt prompts/browser-specialist.md \
+  --output trajectories/phase3-smoke.jsonl
 ```
 
 Modal Servers require proxy authentication by default. The combined proxy token works as a

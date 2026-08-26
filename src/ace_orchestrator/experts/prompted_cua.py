@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from ace_orchestrator.core.models import (
     AutonomyHorizon,
     ExecutionState,
@@ -42,11 +44,28 @@ class PromptedCUAExpert(Expert):
         model_turns = 0
         while len(records) < horizon.action_limit:
             observation = await environment.observe()
+            model_observation = replace(
+                observation,
+                values={
+                    **observation.values,
+                    "recent_actions": [
+                        {
+                            "kind": record.action.kind,
+                            "target_ref": record.action.target_ref,
+                            "target": record.action.target,
+                            "value": record.action.value,
+                            "success": record.success,
+                            "error": record.error,
+                        }
+                        for record in records[-10:]
+                    ],
+                },
+            )
             try:
                 proposal = await self.backend.propose(
                     system_prompt=self.system_prompt,
                     subgoal=subgoal,
-                    observation=observation,
+                    observation=model_observation,
                     policy=policy,
                 )
             except Exception as error:
@@ -80,6 +99,26 @@ class PromptedCUAExpert(Expert):
                         tuple(records),
                         usage,
                         outcome.record.error,
+                    )
+                metrics = environment.metrics_snapshot()
+                if metrics.get("truncated"):
+                    return ExpertResult(
+                        False,
+                        {"summary": summary, "model_turns": model_turns},
+                        tuple(records),
+                        usage,
+                        "environment episode truncated",
+                    )
+                if metrics.get("terminated"):
+                    return ExpertResult(
+                        True,
+                        {
+                            "summary": summary,
+                            "model_turns": model_turns,
+                            "environment_terminated": True,
+                        },
+                        tuple(records),
+                        usage,
                     )
             if proposal.done:
                 return ExpertResult(

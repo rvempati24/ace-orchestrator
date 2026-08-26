@@ -10,5 +10,6 @@ build/
 *.egg-info/
 .env
 trajectories/
-results/
+results/*
+!results/phase3_live.json
 .DS_Store

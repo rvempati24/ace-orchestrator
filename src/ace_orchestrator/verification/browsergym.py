@@ -33,7 +33,15 @@ class BrowserGymVerifier(Verifier):
             "episode_terminated": bool(metrics.get("terminated")),
             "episode_not_truncated": not bool(metrics.get("truncated")),
         }
-        success = all(checks.values())
+        success = all(
+            checks[key]
+            for key in (
+                "actions_completed",
+                "positive_benchmark_reward",
+                "episode_terminated",
+                "episode_not_truncated",
+            )
+        )
         return VerificationResult(
             success=success,
             score=max(0.0, min(1.0, reward)),

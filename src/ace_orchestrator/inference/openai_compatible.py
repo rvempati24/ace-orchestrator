@@ -20,7 +20,8 @@ ACTION_PROTOCOL = """Return exactly one JSON object with this shape:
 {"actions":[{"kind":"click","target_ref":"12"}],"done":false,"summary":"..."}
 Use only observed refs. Supported action kinds are click, double_click, hover, focus, clear,
 fill, type, select_option, select, press, drag_and_drop, scroll, navigate, back, forward, noop,
-and finish. Put text, selected options, or key combinations in value. For drag_and_drop, put
+and finish. Put text, selected options, or key combinations in the `value` field. For
+drag_and_drop, put
 the destination ref in target. For scroll, use numeric delta_x/delta_y fields. Set done=true
 only when the subgoal is complete. Return at most three environment actions per response."""
 
@@ -62,10 +63,21 @@ class OpenAICompatibleCUA(CUABackend):
     }
     max_actions_per_proposal = 3
 
-    def __init__(self, base_url: str, model_id: str, api_key: str | None = None) -> None:
+    value_actions = {"fill", "type", "select", "select_option", "press"}
+
+    def __init__(
+        self,
+        base_url: str,
+        model_id: str,
+        api_key: str | None = None,
+        request_timeout_s: float = 120,
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model_id = model_id
         self.api_key = api_key
+        if request_timeout_s <= 0:
+            raise ValueError("request_timeout_s must be positive")
+        self.request_timeout_s = request_timeout_s
 
     async def propose(
         self,
@@ -110,8 +122,15 @@ class OpenAICompatibleCUA(CUABackend):
                 continue
             target_ref = str(row["target_ref"]) if row.get("target_ref") is not None else None
             target = str(row["target"]) if row.get("target") is not None else None
+            raw_value = row.get("value")
+            if raw_value is None:
+                aliases = ("text", "option", "keys")
+                raw_value = next((row[key] for key in aliases if row.get(key) is not None), None)
+            value = str(raw_value) if raw_value is not None else None
             if kind in self.grounded_actions and not target_ref:
                 raise ValueError(f"CUA action {kind} requires target_ref")
+            if kind in self.value_actions and value is None:
+                raise ValueError(f"CUA action {kind} requires value")
             if (
                 target_ref
                 and observation.available_action_refs
@@ -133,11 +152,12 @@ class OpenAICompatibleCUA(CUABackend):
                     kind=kind,
                     target_ref=target_ref,
                     target=target,
-                    value=str(row["value"]) if row.get("value") is not None else None,
+                    value=value,
                     metadata={
                         key: value
                         for key, value in row.items()
-                        if key not in {"kind", "target_ref", "target", "value"}
+                        if key
+                        not in {"kind", "target_ref", "target", "value", "text", "option", "keys"}
                     },
                 )
             )
@@ -177,7 +197,7 @@ class OpenAICompatibleCUA(CUABackend):
             method="POST",
         )
         try:
-            with urlopen(request, timeout=120) as response:  # noqa: S310
+            with urlopen(request, timeout=self.request_timeout_s) as response:  # noqa: S310
                 return json.load(response)
         except (HTTPError, URLError) as error:
             raise RuntimeError(f"CUA endpoint request failed: {error}") from error
@@ -228,6 +248,7 @@ class OpenAICompatibleCUA(CUABackend):
             ],
             "temperature": 0,
             "max_tokens": policy.config.max_output_tokens,
+            "response_format": {"type": "json_object"},
         }
 
     @staticmethod

@@ -70,6 +70,7 @@ def test_request_compacts_browser_state_and_preserves_png_mime_type() -> None:
     image_url = body["messages"][1]["content"][1]["image_url"]["url"]
     assert image_url.startswith("data:image/png;base64,")
     assert "Return exactly one JSON object" in body["messages"][0]["content"]
+    assert body["response_format"] == {"type": "json_object"}
 
 
 @pytest.mark.asyncio
@@ -129,6 +130,41 @@ async def test_proposal_requires_boolean_completion_state() -> None:
         await client.propose(
             system_prompt="browser specialist",
             subgoal=Subgoal("task", "Click Submit", domain="browser"),
+            observation=browser_observation(),
+            policy=FastPolicy(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_proposal_normalizes_common_value_aliases() -> None:
+    client = StubOpenAICompatibleCUA(
+        {
+            "actions": [{"kind": "fill", "target_ref": "12", "text": "exact text"}],
+            "done": False,
+        }
+    )
+
+    proposal = await client.propose(
+        system_prompt="browser specialist",
+        subgoal=Subgoal("task", "Fill the field", domain="browser"),
+        observation=browser_observation(),
+        policy=FastPolicy(),
+    )
+
+    assert proposal.actions[0].value == "exact text"
+    assert proposal.actions[0].metadata == {}
+
+
+@pytest.mark.asyncio
+async def test_proposal_rejects_missing_required_value_before_execution() -> None:
+    client = StubOpenAICompatibleCUA(
+        {"actions": [{"kind": "select_option", "target_ref": "12"}], "done": False}
+    )
+
+    with pytest.raises(ValueError, match="select_option requires value"):
+        await client.propose(
+            system_prompt="browser specialist",
+            subgoal=Subgoal("task", "Select an option", domain="browser"),
             observation=browser_observation(),
             policy=FastPolicy(),
         )

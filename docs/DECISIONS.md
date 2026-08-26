@@ -96,7 +96,8 @@ episodes. The async orchestrator communicates over process IPC and logs the resu
 ## ADR-012: Benchmark outcomes verify real browser tasks
 
 **Decision:** `BrowserGymVerifier` requires positive task reward, termination without truncation,
-and successful action execution. Expert self-reports are necessary but not sufficient.
+and successful action execution. Expert self-reports remain telemetry but are not a success
+criterion when the benchmark has authoritative terminal signals.
 
 **Why:** A CUA should not grade its own work. MiniWoB supplies deterministic reward and terminal
 signals that provide a clean acceptance boundary for the adapter and future model experiments.

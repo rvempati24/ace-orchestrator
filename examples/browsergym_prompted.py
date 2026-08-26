@@ -39,7 +39,14 @@ def required_environment(name: str) -> str:
     return value
 
 
-async def run(task_name: str, seed: int, output: Path) -> dict:
+async def run(
+    task_name: str,
+    seed: int,
+    output: Path,
+    *,
+    prompt_path: Path = Path("prompts/generalist.md"),
+    policy_id: str = "fast",
+) -> dict:
     base_url = required_environment("ACE_CUA_BASE_URL")
     miniwob_url = required_environment("MINIWOB_URL")
     backend = OpenAICompatibleCUA(
@@ -47,24 +54,28 @@ async def run(task_name: str, seed: int, output: Path) -> dict:
         model_id=os.getenv("ACE_CUA_MODEL_ID", DEFAULT_MODEL_ID),
         api_key=os.getenv("ACE_CUA_API_KEY"),
     )
-    prompt = (PROJECT_ROOT / "prompts" / "generalist.md").read_text(encoding="utf-8")
+    resolved_prompt = prompt_path if prompt_path.is_absolute() else PROJECT_ROOT / prompt_path
+    prompt = resolved_prompt.read_text(encoding="utf-8")
+    prompt_label = resolved_prompt.stem.replace("_", "-")
+    expert_id = prompt_label if prompt_label.startswith("browser-") else f"browser-{prompt_label}"
     expert = PromptedCUAExpert(
-        "browser-generalist",
-        "General prompted browser CUA",
+        expert_id,
+        f"Prompted browser CUA using {resolved_prompt.name}",
         ("browser",),
         prompt,
         backend,
     )
     registry = ExpertRegistry()
     registry.register(expert)
+    environment_factory = BrowserGymEnvironmentFactory(miniwob_url=miniwob_url)
     orchestrator = Orchestrator(
         planner=BrowserTaskPlanner(),
         expert_router=StaticRouter(),
-        policy_router=FixedPolicyRouter("medium"),
+        policy_router=FixedPolicyRouter(policy_id),
         experts=registry,
         policies=default_policies(backend.model_id),
         verifier=BrowserGymVerifier(),
-        environment_factory=BrowserGymEnvironmentFactory(miniwob_url=miniwob_url),
+        environment_factory=environment_factory,
         recovery=RecoveryPolicy(retries_with_stronger_policy=0, reroutes=0),
         logger=JsonlTrajectoryLogger(output),
         modality=ExecutionModality.BROWSER,
@@ -73,8 +84,13 @@ async def run(task_name: str, seed: int, output: Path) -> dict:
     return {
         "task_id": result.task_id,
         "success": result.success,
+        "prompt": str(prompt_path),
+        "policy": policy_id,
         "usage": result.trajectory["usage"],
         "environment_metrics": result.trajectory["environment_metrics"],
+        "environment_closed": bool(
+            environment_factory.sessions and environment_factory.sessions[0].closed
+        ),
         "trajectory": str(output),
     }
 
@@ -84,8 +100,23 @@ def main() -> None:
     parser.add_argument("--task", default="click-test")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--output", type=Path, default=Path("trajectories/phase3-smoke.jsonl"))
+    parser.add_argument("--prompt", type=Path, default=Path("prompts/generalist.md"))
+    parser.add_argument("--policy", choices=("fast", "medium", "deep"), default="fast")
     args = parser.parse_args()
-    print(json.dumps(asyncio.run(run(args.task, args.seed, args.output)), indent=2))
+    print(
+        json.dumps(
+            asyncio.run(
+                run(
+                    args.task,
+                    args.seed,
+                    args.output,
+                    prompt_path=args.prompt,
+                    policy_id=args.policy,
+                )
+            ),
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

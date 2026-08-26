@@ -146,7 +146,9 @@ BrowserGym's pinned Playwright stack currently requires Python 3.11 or 3.12. Set
 commands are in [docs/PHASE2.md](docs/PHASE2.md).
 
 Phase 3's prompted-CUA protocol, live endpoint example, and remaining deployment acceptance
-criteria are tracked in [docs/PHASE3.md](docs/PHASE3.md).
+criteria are tracked in [docs/PHASE3.md](docs/PHASE3.md). The completed Holo/Modal experiment,
+including the browser-specialist 5/5 result and measured cost, is in
+[docs/PHASE3_REPORT.md](docs/PHASE3_REPORT.md).
 
 ## Trajectories and budgets
 
@@ -170,7 +172,7 @@ limits model calls and estimated dollars; experiment runners stop when the guard
 
 ## Roadmap
 
-1. Run the real prompted-expert specialization matrix with fixed model/compute.
+1. Expand the prompted-expert matrix beyond the five-task Phase 3 acceptance suite.
 2. Measure BrowserGym process/IPC latency and compare only if a custom harness is justified.
 3. Measure generalist, static, LLM, and offline-oracle routing on identical trajectories.
 4. Test joint expert/compute/autonomy allocations and their Pareto frontier.
